@@ -1,4 +1,4 @@
-create database pdbms
+
 CREATE TABLE Users (
     UserID INT IDENTITY(1,1) PRIMARY KEY,
     Username NVARCHAR(50) NOT NULL UNIQUE,
@@ -616,21 +616,79 @@ BEGIN
             ERROR_LINE() AS ErrorLine;
     END CATCH
 END;
-CREATE TRIGGER tr_UpdateRoomOccupancy
+CREATE OR ALTER TRIGGER tr_UpdateRoomOccupancy
 ON Admissions
 AFTER INSERT, UPDATE
 AS
 BEGIN
     SET NOCOUNT ON;
-    
-    -- Update room occupancy when admission status changes
+
+    -- Update CurrentOccupancy of each affected room
     UPDATE r
-    SET r.CurrentOccupancy = (
-        SELECT COUNT(*) 
-        FROM Admissions a 
-        WHERE a.RoomID = r.RoomID 
-        AND a.CurrentStatus = 'Active'
-    )
+    SET r.CurrentOccupancy = updatedCounts.ActiveAdmissions
     FROM Rooms r
-    JOIN inserted i ON r.RoomID = i.RoomID;
+    INNER JOIN (
+        SELECT 
+            i.RoomID,
+            COUNT(*) AS ActiveAdmissions
+        FROM inserted i
+        INNER JOIN Admissions a ON a.RoomID = i.RoomID
+        WHERE a.CurrentStatus = 'Active'
+        GROUP BY i.RoomID
+    ) AS updatedCounts
+    ON r.RoomID = updatedCounts.RoomID;
 END;
+INSERT INTO AppointmentStatuses (StatusName, Description) VALUES 
+('Scheduled', 'Appointment is booked'),
+('Completed', 'Appointment was completed'),
+('Cancelled', 'Appointment was cancelled'),
+('No Show', 'Patient did not arrive');
+
+INSERT INTO MedicineCategories (CategoryName, Description) VALUES
+('Antibiotics', 'Medications that fight bacterial infections'),
+('Analgesics', 'Pain relieving medications'),
+('Antipyretics', 'Fever reducing medications'),
+('Antihistamines', 'Allergy medications');
+
+-- Sample user data
+INSERT INTO Users (Username, PasswordHash, FirstName, LastName, Email, PhoneNumber, Role) VALUES
+('admin', 'admin-1234', 'System', 'Admin', 'admin@hospital.com', '1234567890', 'Admin'),
+('dr.smith', 'am-2476', 'Aimen', 'Munir', 'aimenmunir001@gmail.com', '1234567891', 'Doctor'),
+('nurse.jones', 'f047-nb', 'faryal', 'nayyar', 'faryal123@gmail.com', '1234567892', 'Nurse');
+
+-- Sample specialization data
+INSERT INTO Specializations (Name, Description) VALUES
+('Cardiology', 'Heart and cardiovascular system'),
+('Neurology', 'Brain and nervous system'),
+('General Practice', 'Primary care physician');
+
+-- Sample department data
+INSERT INTO Departments (DepartmentName, Description, Location) VALUES
+('Cardiology', 'Heart care unit', 'Building A, Floor 2'),
+('Emergency', 'Emergency services', 'Building A, Floor 1'),
+('Pharmacy', 'Medication dispensing', 'Building B, Floor 1');
+
+-- Sample room data
+INSERT INTO Rooms (RoomNumber, RoomType, DepartmentID, Capacity, DailyRate) VALUES
+('101', 'General', 1, 2, 100.00),
+('201', 'Private', 1, 1, 200.00),
+('ER1', 'Emergency', 2, 1, 150.00);
+UPDATE Users
+SET 
+   
+    PasswordHash = 'admin-1234'
+WHERE Username = 'admin';
+UPDATE Users
+SET 
+    Username = 'aimenmnr',
+    PasswordHash = 'am2476'
+WHERE Username = 'dr.smith';
+
+UPDATE Users
+SET 
+    Username = 'faryaln',
+    PasswordHash = 'f047-nb'
+WHERE Username = 'nurse.jones';
+
+-- Database creation complete
+PRINT 'Database for Adults and Adolescents Medicines Clinic,PLLC, Memphis. created successfully';
